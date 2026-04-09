@@ -37,13 +37,14 @@ jwt = JWTManager(app)
 # ──────────────────────────────────────────────────────────────────────────────
 DB_CONFIG = {
     "host":         os.getenv("DB_HOST",   "127.0.0.1"),
-    "port":         int(os.getenv("DB_PORT", 5000)),
+    "port":         int(os.getenv("DB_PORT", 3306)),
     "user":         os.getenv("DB_USER"),      # Removed hardcoded 'FAHDIL'
     "password":     os.getenv("DB_PASS"),      # Removed hardcoded password
     "db":           os.getenv("DB_NAME"),      # Removed hardcoded DB name
     "charset":      "utf8mb4",
     "cursorclass":  pymysql.cursors.DictCursor,
     "autocommit":   True,
+    "unix_socket":  "/var/run/mysqld/mysqld.sock",
 }
 
 # ──────────────────────────────────────────────────────────────────────────────

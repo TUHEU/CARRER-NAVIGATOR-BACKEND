@@ -38,12 +38,12 @@ jwt = JWTManager(app)
 DB_CONFIG = {
     "host":         os.getenv("DB_HOST",   "localhost"),
     "port":         int(os.getenv("DB_PORT", 3306)),
-    "user":         os.getenv("DB_USER",   "root"),
-    "password":     os.getenv("DB_PASS",   "Fahdil@1"),
-    "db":           os.getenv("DB_NAME",   "career_navigator"),
+    "user":         os.getenv("DB_USER"),      # Removed hardcoded 'FAHDIL'
+    "password":     os.getenv("DB_PASS"),      # Removed hardcoded password
+    "db":           os.getenv("DB_NAME"),      # Removed hardcoded DB name
     "charset":      "utf8mb4",
-    "cursorclass": pymysql.cursors.DictCursor,
-    "autocommit":  True,
+    "cursorclass":  pymysql.cursors.DictCursor,
+    "autocommit":   True,
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ DB_CONFIG = {
 # ──────────────────────────────────────────────────────────────────────────────
 BREVO_API_KEY      = os.getenv("BREVO_API_KEY")
 BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "Career Navigator")
-BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "nadaljunior999@gmail.com")
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helper utilities

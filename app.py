@@ -116,6 +116,10 @@ def send_verification_email(to_email: str, to_name: str, code: str) -> bool:
 # ──────────────────────────────────────────────────────────────────────────────
 # AUTH — Register
 # ──────────────────────────────────────────────────────────────────────────────
+@app.route("/")
+def home():
+    return jsonify({"status": "online", "message": "Career Navigator API is running"}), 200
+
 @app.route("/auth/register", methods=["POST"])
 def register():
     body     = request.get_json(silent=True) or {}

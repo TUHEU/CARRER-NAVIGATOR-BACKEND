@@ -3,6 +3,7 @@ import random
 import string
 from datetime import datetime, timedelta
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import (
@@ -18,10 +19,15 @@ import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Load .env file
+# ─────────────────────────────────────────────────────────────────────────────
+load_dotenv()
+
+# ─────────────────────────────────────────────────────────────────────────────
 # App & extension setup
 # ─────────────────────────────────────────────────────────────────────────────
 app = Flask(__name__)
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET", "super-secret-key")
+app.config["JWT_SECRET_KEY"]            = os.getenv("JWT_SECRET", "super-secret-key")
 app.config["JWT_ACCESS_TOKEN_EXPIRES"]  = timedelta(hours=1)
 app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
 
@@ -35,7 +41,7 @@ DB_CONFIG = {
     "host":        os.getenv("DB_HOST",   "localhost"),
     "port":        int(os.getenv("DB_PORT", 3306)),
     "user":        os.getenv("DB_USER",   "root"),
-    "password":    os.getenv("DB_PASS",   "Fahdil@1"),
+    "password":    os.getenv("DB_PASS",   ""),
     "db":          os.getenv("DB_NAME",   "career_navigator"),
     "charset":     "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
@@ -45,9 +51,10 @@ DB_CONFIG = {
 # ─────────────────────────────────────────────────────────────────────────────
 # Brevo (email) configuration
 # ─────────────────────────────────────────────────────────────────────────────
-BREVO_API_KEY      = os.getenv("BREVO_API_KEY")
-BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME", "Career Navigator")
-BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL")
+BREVO_API_KEY      = os.getenv("BREVO_API_KEY", ""  )
+BREVO_SENDER_NAME  = os.getenv("BREVO_SENDER_NAME",  "Career Navigator")
+BREVO_SENDER_EMAIL = os.getenv("BREVO_SENDER_EMAIL", "")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Helper utilities
 # ─────────────────────────────────────────────────────────────────────────────
@@ -55,15 +62,19 @@ def get_db():
     return pymysql.connect(**DB_CONFIG)
 
 def success(data=None, msg="OK", status=200):
-    return jsonify({"success": True,  "message": msg,   "data": data}), status
+    return jsonify({"success": True,  "message": msg, "data": data}), status
 
 def error(msg="Error", status=400):
-    return jsonify({"success": False, "message": msg,   "data": None}), status
+    return jsonify({"success": False, "message": msg, "data": None}), status
 
 def generate_otp(length=6):
     return "".join(random.choices(string.digits, k=length))
 
 def send_verification_email(to_email, to_name, code):
+    if not BREVO_API_KEY or not BREVO_SENDER_EMAIL:
+        app.logger.warning("Brevo not configured — skipping email send.")
+        return False
+
     configuration = sib_api_v3_sdk.Configuration()
     configuration.api_key["api-key"] = BREVO_API_KEY
     api = sib_api_v3_sdk.TransactionalEmailsApi(
@@ -123,8 +134,6 @@ def register():
                 (email, pw_hash),
             )
             user_id = conn.insert_id()
-
-            # Default job_seeker profile row
             cur.execute("INSERT INTO job_seekers (user_id) VALUES (%s)", (user_id,))
 
             code       = generate_otp()
@@ -170,7 +179,8 @@ def verify_email():
             user_id = user["id"]
             cur.execute(
                 """SELECT id FROM email_verification_codes
-                   WHERE user_id=%s AND code=%s AND used=0 AND expires_at>UTC_TIMESTAMP()
+                   WHERE user_id=%s AND code=%s AND used=0
+                   AND expires_at > UTC_TIMESTAMP()
                    ORDER BY id DESC LIMIT 1""",
                 (user_id, code),
             )
@@ -178,7 +188,10 @@ def verify_email():
             if not otp_row:
                 return error("Invalid or expired verification code.", 400)
 
-            cur.execute("UPDATE email_verification_codes SET used=1 WHERE id=%s", (otp_row["id"],))
+            cur.execute(
+                "UPDATE email_verification_codes SET used=1 WHERE id=%s",
+                (otp_row["id"],)
+            )
             cur.execute("UPDATE users SET is_verified=1 WHERE id=%s", (user_id,))
 
         access_token  = create_access_token(identity=str(user_id))
@@ -213,13 +226,14 @@ def resend_code():
 
             user_id = user["id"]
             cur.execute(
-                "UPDATE email_verification_codes SET used=1 WHERE user_id=%s AND used=0",
-                (user_id,),
+                "UPDATE email_verification_codes SET used=1 "
+                "WHERE user_id=%s AND used=0", (user_id,),
             )
             code       = generate_otp()
             expires_at = datetime.utcnow() + timedelta(minutes=10)
             cur.execute(
-                "INSERT INTO email_verification_codes (user_id, code, expires_at) VALUES (%s,%s,%s)",
+                "INSERT INTO email_verification_codes "
+                "(user_id, code, expires_at) VALUES (%s,%s,%s)",
                 (user_id, code, expires_at),
             )
 
@@ -290,7 +304,6 @@ def get_profile():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            # Base user + job_seeker join
             cur.execute(
                 """SELECT u.id, u.email, u.full_name, u.date_of_birth,
                           u.profile_picture, u.role, u.is_verified, u.role_selected,
@@ -309,7 +322,6 @@ def get_profile():
             if not profile:
                 return error("User not found.", 404)
 
-            # Education entries
             cur.execute(
                 """SELECT id, institution, degree, field_of_study,
                           start_year, end_year, is_current, description
@@ -318,7 +330,6 @@ def get_profile():
             )
             profile["education"] = cur.fetchall()
 
-            # Work experience entries
             cur.execute(
                 """SELECT id, company, job_title, employment_type, location,
                           start_date, end_date, is_current, description
@@ -331,14 +342,13 @@ def get_profile():
                 if w.get("end_date"):   w["end_date"]   = str(w["end_date"])
             profile["work_experience"] = work
 
-            # If mentor, also pull mentor_profile
             if profile.get("role") == "mentor":
                 cur.execute(
                     """SELECT headline, bio, phone, location, years_of_experience,
                               current_company, current_job_title, expertise_areas,
                               industries, mentoring_style, session_price, currency,
-                              availability_days, availability_time_from, availability_time_to,
-                              max_mentees, is_accepting_mentees,
+                              availability_days, availability_time_from,
+                              availability_time_to, max_mentees, is_accepting_mentees,
                               linkedin_url, github_url, portfolio_url, website_url,
                               rating, total_sessions
                        FROM mentor_profiles WHERE user_id=%s""",
@@ -361,12 +371,11 @@ def get_profile():
 @app.route("/profile/setup", methods=["PUT"])
 @jwt_required()
 def setup_profile():
-    """Initial profile setup — name, dob, role choice."""
     user_id   = int(get_jwt_identity())
     body      = request.get_json(silent=True) or {}
     full_name = (body.get("full_name", "") or "").strip()
     dob       = (body.get("date_of_birth", "") or "").strip()
-    role      = (body.get("role", "") or "").strip()  # 'job_seeker' or 'mentor'
+    role      = (body.get("role", "") or "").strip()
 
     if not full_name:
         return error("Full name is required.", 400)
@@ -378,16 +387,15 @@ def setup_profile():
         with conn.cursor() as cur:
             if role:
                 cur.execute(
-                    "UPDATE users SET full_name=%s, date_of_birth=%s, role=%s, role_selected=1 "
-                    "WHERE id=%s",
+                    "UPDATE users SET full_name=%s, date_of_birth=%s, "
+                    "role=%s, role_selected=1 WHERE id=%s",
                     (full_name, dob or None, role, user_id),
                 )
-                # If switching to mentor, ensure mentor_profile row exists
                 if role == "mentor":
                     cur.execute(
-                        "INSERT IGNORE INTO mentor_profiles (user_id) VALUES (%s)", (user_id,)
+                        "INSERT IGNORE INTO mentor_profiles (user_id) VALUES (%s)",
+                        (user_id,)
                     )
-                # Ensure job_seekers row always exists too
                 cur.execute(
                     "INSERT IGNORE INTO job_seekers (user_id) VALUES (%s)", (user_id,)
                 )
@@ -407,10 +415,8 @@ def setup_profile():
 @app.route("/profile/job-seeker", methods=["PUT"])
 @jwt_required()
 def update_job_seeker_profile():
-    """Update job seeker specific fields."""
     user_id = int(get_jwt_identity())
     body    = request.get_json(silent=True) or {}
-
     allowed = [
         "headline", "bio", "phone", "location", "years_of_experience",
         "current_job_title", "desired_job_title", "skills", "resume_url",
@@ -441,10 +447,8 @@ def update_job_seeker_profile():
 @app.route("/profile/mentor", methods=["PUT"])
 @jwt_required()
 def update_mentor_profile():
-    """Update mentor specific fields."""
     user_id = int(get_jwt_identity())
     body    = request.get_json(silent=True) or {}
-
     allowed = [
         "headline", "bio", "phone", "location", "years_of_experience",
         "current_company", "current_job_title", "expertise_areas", "industries",
@@ -463,8 +467,9 @@ def update_mentor_profile():
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            # Ensure mentor row exists
-            cur.execute("INSERT IGNORE INTO mentor_profiles (user_id) VALUES (%s)", (user_id,))
+            cur.execute(
+                "INSERT IGNORE INTO mentor_profiles (user_id) VALUES (%s)", (user_id,)
+            )
             cur.execute(
                 f"UPDATE mentor_profiles SET {set_clause} WHERE user_id=%s", values
             )
@@ -505,19 +510,20 @@ def get_education():
 @app.route("/profile/education", methods=["POST"])
 @jwt_required()
 def add_education():
-    user_id = int(get_jwt_identity())
-    body    = request.get_json(silent=True) or {}
-
-    institution    = (body.get("institution",   "") or "").strip()
-    degree         = (body.get("degree",        "") or "").strip()
-    field_of_study = (body.get("field_of_study","") or "").strip()
+    user_id        = int(get_jwt_identity())
+    body           = request.get_json(silent=True) or {}
+    institution    = (body.get("institution",    "") or "").strip()
+    degree         = (body.get("degree",         "") or "").strip()
+    field_of_study = (body.get("field_of_study", "") or "").strip()
     start_year     = body.get("start_year")
     end_year       = body.get("end_year")
     is_current     = int(body.get("is_current", 0))
     description    = body.get("description", "")
 
     if not institution or not degree or not field_of_study or not start_year:
-        return error("institution, degree, field_of_study and start_year are required.", 400)
+        return error(
+            "institution, degree, field_of_study and start_year are required.", 400
+        )
 
     conn = get_db()
     try:
@@ -544,8 +550,10 @@ def add_education():
 def update_education(edu_id):
     user_id = int(get_jwt_identity())
     body    = request.get_json(silent=True) or {}
-
-    allowed = ["institution","degree","field_of_study","start_year","end_year","is_current","description"]
+    allowed = [
+        "institution", "degree", "field_of_study",
+        "start_year", "end_year", "is_current", "description"
+    ]
     updates = {k: body[k] for k in allowed if k in body}
     if not updates:
         return error("No fields to update.", 400)
@@ -574,7 +582,9 @@ def delete_education(edu_id):
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("DELETE FROM education WHERE id=%s AND user_id=%s", (edu_id, user_id))
+            cur.execute(
+                "DELETE FROM education WHERE id=%s AND user_id=%s", (edu_id, user_id)
+            )
         return success(msg="Education entry deleted.")
     except Exception as e:
         app.logger.error(f"delete_education error: {e}")
@@ -615,9 +625,8 @@ def get_work_experience():
 @app.route("/profile/work-experience", methods=["POST"])
 @jwt_required()
 def add_work_experience():
-    user_id = int(get_jwt_identity())
-    body    = request.get_json(silent=True) or {}
-
+    user_id         = int(get_jwt_identity())
+    body            = request.get_json(silent=True) or {}
     company         = (body.get("company",   "") or "").strip()
     job_title       = (body.get("job_title", "") or "").strip()
     employment_type = body.get("employment_type", "full_time")
@@ -655,9 +664,10 @@ def add_work_experience():
 def update_work_experience(work_id):
     user_id = int(get_jwt_identity())
     body    = request.get_json(silent=True) or {}
-
-    allowed = ["company","job_title","employment_type","location",
-               "start_date","end_date","is_current","description"]
+    allowed = [
+        "company", "job_title", "employment_type", "location",
+        "start_date", "end_date", "is_current", "description"
+    ]
     updates = {k: body[k] for k in allowed if k in body}
     if not updates:
         return error("No fields to update.", 400)
@@ -669,7 +679,8 @@ def update_work_experience(work_id):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                f"UPDATE work_experience SET {set_clause} WHERE id=%s AND user_id=%s", values
+                f"UPDATE work_experience SET {set_clause} WHERE id=%s AND user_id=%s",
+                values
             )
         return success(msg="Work experience updated.")
     except Exception as e:
@@ -687,7 +698,8 @@ def delete_work_experience(work_id):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "DELETE FROM work_experience WHERE id=%s AND user_id=%s", (work_id, user_id)
+                "DELETE FROM work_experience WHERE id=%s AND user_id=%s",
+                (work_id, user_id)
             )
         return success(msg="Work experience entry deleted.")
     except Exception as e:
@@ -704,7 +716,6 @@ def delete_work_experience(work_id):
 @app.route("/mentors", methods=["GET"])
 @jwt_required()
 def list_mentors():
-    """Return a paginated list of mentors. Optionally filter by expertise."""
     expertise = request.args.get("expertise", "")
     page      = max(1, int(request.args.get("page", 1)))
     per_page  = min(20, int(request.args.get("per_page", 10)))
@@ -756,8 +767,7 @@ def get_mentor_detail(mentor_user_id):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT u.id, u.full_name, u.profile_picture,
-                          mp.*
+                """SELECT u.id, u.full_name, u.profile_picture, mp.*
                    FROM mentor_profiles mp
                    JOIN users u ON u.id = mp.user_id
                    WHERE mp.user_id=%s AND u.is_active=1""",
@@ -767,9 +777,9 @@ def get_mentor_detail(mentor_user_id):
             if not mentor:
                 return error("Mentor not found.", 404)
 
-            # Their work experience
             cur.execute(
-                """SELECT company, job_title, employment_type, start_date, end_date, is_current
+                """SELECT company, job_title, employment_type,
+                          start_date, end_date, is_current
                    FROM work_experience WHERE user_id=%s ORDER BY start_date DESC""",
                 (mentor_user_id,),
             )
@@ -779,7 +789,6 @@ def get_mentor_detail(mentor_user_id):
                 if w.get("end_date"):   w["end_date"]   = str(w["end_date"])
             mentor["work_experience"] = work
 
-            # Their education
             cur.execute(
                 """SELECT institution, degree, field_of_study, start_year, end_year
                    FROM education WHERE user_id=%s ORDER BY start_year DESC""",
@@ -800,6 +809,7 @@ def get_mentor_detail(mentor_user_id):
 # ═════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     print("--- Initializing Career Navigator API v2 ---")
+
     try:
         test_conn = get_db()
         test_conn.close()
@@ -807,9 +817,9 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌  Database : {e}")
 
-    if BREVO_API_KEY.startswith("xkeysib-"):
-        print("✅  Brevo    : API key detected")
+    if BREVO_API_KEY:
+        print("✅  Brevo    : API key loaded")
     else:
-        print("⚠️   Brevo    : API key missing or invalid")
+        print("⚠️   Brevo    : API key missing — check your .env file")
 
     app.run(debug=False, host="0.0.0.0", port=5000)

@@ -1,13 +1,13 @@
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required
-from models.base_model import DatabaseConnection
+from models.base_model import DatabaseManager
 
 
 class SearchController:
     """Search controller - Handles searching mentors and job seekers"""
     
     def __init__(self):
-        self._db = DatabaseConnection()
+        self._db = DatabaseManager()
     
     @jwt_required()
     def search(self):

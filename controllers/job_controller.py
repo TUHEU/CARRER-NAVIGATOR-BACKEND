@@ -4,7 +4,7 @@ from models.job_model import JobListingModel
 from models.user_model import UserModel
 from services.notification_service import NotificationService
 from middleware.auth_middleware import admin_required
-from models.base_model import DatabaseConnection
+from models.base_model import DatabaseManager
 
 
 class JobController:
@@ -14,7 +14,7 @@ class JobController:
         self._job_model = JobListingModel()
         self._user_model = UserModel()
         self._notification_service = NotificationService()
-        self._db = DatabaseConnection()
+        self._db = DatabaseManager()
     
     @jwt_required()
     @admin_required

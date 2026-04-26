@@ -1,48 +1,62 @@
-from abc import ABC, abstractmethod
+"""Base Model Module - Database Connection and Abstract Base Model"""
 import pymysql
 import pymysql.cursors
 from config import Config
 
 
-class DatabaseConnection:
-    """Singleton database connection manager"""
+class DatabaseManager:
+    """Database connection manager - Singleton pattern"""
     
-    _instance = None
+    _config = {
+        'host': Config.DB_HOST,
+        'port': Config.DB_PORT,
+        'user': Config.DB_USER,
+        'password': Config.DB_PASSWORD,
+        'database': Config.DB_NAME,
+        'charset': 'utf8mb4',
+        'cursorclass': pymysql.cursors.DictCursor,
+        'autocommit': True
+    }
     
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    @classmethod
+    def get_connection(cls):
+        """Get a new database connection"""
+        try:
+            return pymysql.connect(**cls._config)
+        except Exception as e:
+            print(f"Database connection error: {e}")
+            raise
     
-    def get_connection(self):
-        return pymysql.connect(
-            host=Config.DB_HOST,
-            port=Config.DB_PORT,
-            user=Config.DB_USER,
-            password=Config.DB_PASSWORD,
-            database=Config.DB_NAME,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor,
-            autocommit=True
-        )
+    @classmethod
+    def test(cls) -> bool:
+        """Test database connection"""
+        try:
+            conn = cls.get_connection()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Database test failed: {e}")
+            return False
 
 
-class BaseModel(ABC):
-    """Abstract base model - Abstraction & Inheritance"""
+class BaseModel:
+    """Abstract base model - All models inherit from this"""
     
-    db = DatabaseConnection()
+    db = DatabaseManager()
     
     def __init__(self):
         self._table = None
         self._primary_key = 'id'
     
-    @abstractmethod
     def get_table_name(self) -> str:
-        """Each child must define its table name"""
-        pass
+        """Child classes must override this"""
+        raise NotImplementedError("Child class must implement get_table_name()")
     
     def find_by_id(self, id: int):
-        """Find record by ID - Polymorphism"""
+        """Find record by ID"""
+        if not self.get_table_name():
+            return None
+        
         with self.db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -53,6 +67,9 @@ class BaseModel(ABC):
     
     def find_all(self, conditions: dict = None, limit: int = 100, offset: int = 0):
         """Find all records with optional conditions"""
+        if not self.get_table_name():
+            return []
+        
         with self.db.get_connection() as conn:
             with conn.cursor() as cur:
                 query = f"SELECT * FROM {self.get_table_name()}"
@@ -71,6 +88,9 @@ class BaseModel(ABC):
     
     def create(self, data: dict) -> int:
         """Create new record"""
+        if not self.get_table_name() or not data:
+            return 0
+        
         columns = ', '.join(data.keys())
         placeholders = ', '.join(['%s'] * len(data))
         
@@ -83,7 +103,10 @@ class BaseModel(ABC):
                 return cur.lastrowid
     
     def update(self, id: int, data: dict) -> bool:
-        """Update record"""
+        """Update record by ID"""
+        if not self.get_table_name() or not data:
+            return False
+        
         updates = ', '.join([f"{k} = %s" for k in data.keys()])
         
         with self.db.get_connection() as conn:
@@ -95,7 +118,10 @@ class BaseModel(ABC):
                 return cur.rowcount > 0
     
     def delete(self, id: int) -> bool:
-        """Delete record"""
+        """Delete record by ID"""
+        if not self.get_table_name():
+            return False
+        
         with self.db.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(

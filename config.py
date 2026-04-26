@@ -1,3 +1,4 @@
+"""Configuration Module"""
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -6,7 +7,7 @@ load_dotenv()
 
 
 class Config:
-    """Base configuration class - Abstraction"""
+    """Base configuration class"""
     
     # Database
     DB_HOST = os.getenv('DB_HOST', 'localhost')
@@ -41,11 +42,10 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
-    
-    
+
+
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
     'default': DevelopmentConfig
-    
 }

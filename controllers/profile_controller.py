@@ -1,7 +1,7 @@
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.user_model import UserModel, JobSeekerModel, MentorModel
-from models.base_model import DatabaseConnection
+from models.base_model import DatabaseManager
 
 
 class ProfileController:
@@ -11,7 +11,7 @@ class ProfileController:
         self._user_model = UserModel()
         self._job_seeker_model = JobSeekerModel()
         self._mentor_model = MentorModel()
-        self._db = DatabaseConnection()
+        self._db = DatabaseManager()  # Changed from DatabaseManager
     
     @jwt_required()
     def get_profile(self):

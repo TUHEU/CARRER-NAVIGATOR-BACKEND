@@ -3,7 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.chat_model import ConversationModel, MessageModel
 from models.user_model import UserModel
 from services.notification_service import NotificationService
-from models.base_model import DatabaseConnection
+from models.base_model import DatabaseManager
 
 
 class ChatController:
@@ -14,7 +14,7 @@ class ChatController:
         self._message_model = MessageModel()
         self._user_model = UserModel()
         self._notification_service = NotificationService()
-        self._db = DatabaseConnection()
+        self._db = DatabaseManager()
     
     @jwt_required()
     def get_conversations(self):

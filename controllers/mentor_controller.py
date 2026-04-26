@@ -4,7 +4,7 @@ from models.user_model import UserModel, MentorModel
 from models.chat_model import ConversationModel
 from services.email_service import EmailService
 from services.notification_service import NotificationService
-from models.base_model import DatabaseConnection
+from models.base_model import DatabaseManager
 
 
 class MentorController:
@@ -16,7 +16,7 @@ class MentorController:
         self._conversation_model = ConversationModel()
         self._email_service = EmailService()
         self._notification_service = NotificationService()
-        self._db = DatabaseConnection()
+        self._db = DatabaseManager()
     
     @jwt_required()
     def list_mentors(self):

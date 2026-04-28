@@ -528,8 +528,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👥 Author
 
 **Tuheu Moussa**
-- GitHub: [@tuheu-moussa](https://github.com/tuheu-moussa)
-- Email: tuheu.moussa@ictuniversity.edu.cm
+- GitHub: [@TUHEU](https://github.com/TUHEU)
+- Email: nadaljunior999@gmail.com
 
 ## 🙏 Acknowledgments
 
@@ -570,15 +570,15 @@ python app.py
 
 ---
 
-**Made with ❤️ by Tuheu Moussa & the Career Navigator Team**
+**Made with ❤️ by Tuheu Tchoubi Pempeme Moussa Fahdil  & the Career Navigator Team**
 
 ---
 
 ## 🎯 Admin Login Credentials
 
 After setup, you can login with:
-- **Email:** `tuheu.moussa@ictuniversity.edu.cm`
-- **Password:** `Tuheu@ictu2024`
+- **Email:** `*****************************`
+- **Password:** `************`
 
 ---
 
